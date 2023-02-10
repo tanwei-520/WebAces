@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="favicon.ico" />
+    <script src="./ace/ace.js"></script>
+    <script src="./ace/theme-xcode.js"></script>
+    <script src="./ace/mode-javascript.js"></script>
+    <script src="./js/vue.js"></script>
+    <script src="./js/jquery-3.6.3.min.js"></script>
+    <script src="./js/clipboard.min.js"></script>
+    <link rel="stylesheet" href="./ace/ace-tm.css" />
+    <script src="./ElementUi/index.js"></script>
+    <link rel="stylesheet" href="./ElementUi/index.css" />
+    <style type="text/css">
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        position: absolute;
+        background-color: #f3f4fa;
+      }
+      #app p {
+        margin: 0;
+        line-height: 32px;
+        height: 32px;
+        float: left;
+        margin-left: 28px;
+        font-weight: bold;
+      }
+      .el-message {
+        min-width: 150px;
+      }
+      #right {
+        width: calc(60% - 10px);
+        float: right;
+        height: 100%;
+        position: relative;
+        background-color: #ffffff;
+        box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.1);
+      }
+      #codeShow {
+        padding-top: 10px;
+        height: calc(100% - 42px);
+      }
+      .err {
+        color: red;
+        width: 200px;
+      }
+      .success {
+        color: rgb(137, 211, 26);
+      }
+      /* 以下为滚动条的css样式 */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        border-radius: 8px;
+        background-color: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        border-radius: 8px;
+        background-color: rgba(0, 0, 0, 0.3);
+      }
+      ::-webkit-scrollbar-corner {
+        background-color: transparent;
+      }
+    </style>
+    <title>在线编辑器</title>
+  </head>
+  <body>
+    <div id="app" style="height: 100%; position: relative; width: 100%">
+      <div
+        style="
+          width: 40%;
+          height: 100%;
+          position: relative;
+          box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.1);
+          float: left;
+        "
+      >
+        <div
+          style="
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 30;
+            background-color: #ffffff;
+            position: relative;
+          "
+        >
+          <p><i class="el-icon-edit-outline"></i> 代码编辑</p>
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-video-play"
+            style="float: right; margin-left: 10px"
+            @click="debEvel"
+            >运行</el-button
+          >
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-brush"
+            style="float: right"
+            @click="clearCode"
+            >清空</el-button
+          >
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-refresh-left"
+            style="float: right"
+            @click="csDy"
+            >重置</el-button
+          >
+          <el-button
+            type="primary"
+            size="small"
+            :icon="elico"
+            style="float: right"
+            @click="Switching"
+            >高亮</el-button
+          >
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-document-copy"
+            style="float: right"
+            id="copy"
+            @click="copy"
+            >复制</el-button
+          >
+          <div style="clear: both"></div>
+        </div>
+        <div
+          id="codeEditor"
+          ref="ace"
+          class="ace_editor"
+          :class="acetm"
+          style="
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            top: 32px;
+            height: calc(100% - 32px);
+            z-index: 20;
+          "
+        ></div>
+      </div>
+      <div id="right">
+        <div
+          style="
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 30;
+            background-color: #ffffff;
+            position: relative;
+          "
+        >
+          <p><i class="el-icon-document-checked"></i> 运行结果</p>
+          <p :class="aclss">{{debText}}</p>
+          <div style="clear: both"></div>
+        </div>
+        <div id="codeShow"></div>
+      </div>
+    </div>
+    <script>
+      //初始化代码编辑器
+      var app = new Vue({
+        el: "#app",
+        data: {
+          editor: null,
+          themePath: "ace/theme/xcode",
+          modePath: "ace/mode/javascript",
+          debText: "",
+          acetm: false,
+          aclss: "",
+          elico: "el-icon-bottom",
+        },
+        mounted() {
+          this.editor = ace.edit(codeEditor, {
+            fontSize: 14,
+            value: this.value ? this.value : "",
+            theme: this.themePath,
+            mode: this.modePath,
+            wrap: true,
+          });
+          this.editor.getSession().setUseWrapMode(false); //自动换行
+          this.csDy(); //初始加载代码并运行，使用async/await控制异步顺序（由于mounted异步调用方法，需先获取代码再运行）
+          //$("#codeEditor").addClass("ace-tm");//编辑代码中含有属性对象的可设置添加该css，优化高亮效果，参考Echarts
+          //this.editor.getSession().on("change", this.change);//编辑器变化监听
+        },
+        methods: {
+          async csDy() {
+            //async函数前的修饰符，被async定义的函数会默认返回一个Promise对象resolve的值，配合await使用
+            let s = await this.refresh(); //await关键字 会获取到refresh返回值后再执行
+            this.editor.setValue(s, -1);
+            if (this.editor.session.getLength()) {
+              //获取编辑器行数
+              this.editor.moveCursorTo(1); //移动光标至第二行，第1列
+            }
+            this.debEvel();
+          },
+          change() {
+            this.codes = this.editor.getValue();
+          },
+          debEvel() {
+            try {
+              const func = this.editor.getValue();
+              if (func == "") {
+                this.debText = "没有可执行的代码！";
+                this.aclss = "err";
+                return false;
+              }
+              eval(func);
+              this.debText = "运行成功！";
+              this.aclss = "success";
+              return true;
+            } catch {
+              this.debText = "代码有误，请检查！";
+              this.aclss = "err";
+              return false;
+            }
+          },
+          clearCode() {
+            //清空编辑器
+            this.editor.setValue("");
+          },
+          refresh() {
+            return new Promise((resolve, reject) => {
+              $.ajax("./varjs/s.js", {
+                dataType: "text",
+                success: function (data) {
+                  return resolve(data);
+                },
+                error: function (data) {
+                  return resolve(data);
+                },
+              });
+            });
+          },
+          Switching() {
+            //高亮模式切换
+            this.acetm = !this.acetm;
+            if (this.acetm) {
+              $("#codeEditor").addClass("ace-tm");
+              this.elico = "el-icon-top";
+            } else {
+              $("#codeEditor").removeClass("ace-tm");
+              this.elico = "el-icon-bottom";
+            }
+          },
+          copy() {
+            var tx = this.editor.getValue();
+            var Clipboard = new ClipboardJS("#copy", {
+              //实例化ClipboardJS对象(clipboard.js)，#copy触发控件（id）,text返回什么就复制什么
+              text: function () {
+                return tx;
+              },
+            });
+            //成功操作后的自定义事件
+            var _this = this;
+            Clipboard.on("success", function (e) {
+              //console.info("Action:", e.action);//打印操作(剪切/复制)
+              //console.info("Text:", e.text);//打印复制的文本
+              //console.info("Trigger:", e.trigger);//打印操作的元素及属性
+              _this.$message.closeAll(); //避免重复弹出，在弹出前关闭所有实例
+              _this.$message({
+                message: "复制成功！",
+                type: "success",
+                center: true,
+                duration: 2500,
+              });
+            });
+            //操作失败后的自定义事件
+            Clipboard.on("error", function (e) {
+              _this.$message.closeAll();
+              _this.$message({
+                //showClose: true,//显示关闭按钮
+                message: "复制失败！",
+                type: "error",
+                center: true,
+                duration: 2500,
+              });
+            });
+          },
+        },
+      });
+    </script>
+    <script></script>
+  </body>
+</html>
